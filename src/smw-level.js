@@ -85,24 +85,38 @@ export function parseLayer1Objects(decoded) {
 export function loadSmwLevel(romBytes, levelId) {
   const bytes = romBytes instanceof Uint8Array ? romBytes : new Uint8Array(romBytes);
   const layer1Pointer = readPointer(bytes, levelId, LAYER1_POINTER_TABLE, 3);
-  const layer1Stream = decompressLCRLE1(bytes, layer1Pointer.offset);
-  const parsed = parseLayer1Objects(layer1Stream.data);
+  // Vanilla SMW Layer 1 object records are stored raw, not LC-RLE1 compressed.
+  // Stop at the end of this LoROM bank so a missing FF terminator cannot read
+  // through into unrelated data in the next bank.
+  const bankEnd = Math.min(bytes.length, (Math.floor(layer1Pointer.offset / 0x8000) + 1) * 0x8000);
+  const rawLayer1Bank = bytes.subarray(layer1Pointer.offset, bankEnd);
+  const parsed = parseLayer1Objects(rawLayer1Bank);
+  const layer1Data = rawLayer1Bank.subarray(0, parsed.terminatorOffset + 1);
+  const layer1BytesConsumed = parsed.terminatorOffset + 1;
   let layer2 = null, layer2Error = null, sprite = null, spriteError = null;
   try {
     const pointer = readPointer(bytes, levelId, LAYER2_POINTER_TABLE, 3);
     if (((pointer.address >>> 16) & 0xFF) !== 0xFF) {
-      const stream = decompressLCRLE1(bytes, pointer.offset);
-      layer2 = { pointer, decodedBytes: stream.data.length };
+      // Layer 2 object streams are also raw; only BG tilemaps use LC-RLE1.
+      const end = Math.min(bytes.length, (Math.floor(pointer.offset / 0x8000) + 1) * 0x8000);
+      const data = bytes.subarray(pointer.offset, end);
+      const terminator = data.indexOf(0xFF);
+      if (terminator < 5) throw new Error("Layer 2 object list has no valid FF terminator.");
+      layer2 = { pointer, decodedBytes: terminator + 1 };
     } else layer2 = { pointer, tilemap: true, decodedBytes: null };
   } catch (error) { layer2Error = error.message; }
   try {
     const pointer = readPointer(bytes, levelId, SPRITE_POINTER_TABLE, 2, true);
-    const stream = decompressLCRLE1(bytes, pointer.offset);
-    sprite = { pointer, decodedBytes: stream.data.length, data: stream.data };
+    // Sprite records are raw and use FF as their vanilla end marker.
+    const end = Math.min(bytes.length, (Math.floor(pointer.offset / 0x8000) + 1) * 0x8000);
+    const data = bytes.subarray(pointer.offset, end);
+    const terminator = data.indexOf(0xFF);
+    if (terminator < 1) throw new Error("Sprite list has no FF terminator.");
+    sprite = { pointer, decodedBytes: terminator + 1, data: data.subarray(0, terminator + 1) };
   } catch (error) { spriteError = error.message; }
   return {
-    levelId, layer1Pointer, compressedBytes: layer1Stream.bytesConsumed, decodedBytes: layer1Stream.data.length,
-    header: parsed.header, objects: parsed.objects, rawLayer1: layer1Stream.data, layer2, layer2Error, sprite, spriteError,
+    levelId, layer1Pointer, compressedBytes: layer1BytesConsumed, decodedBytes: layer1Data.length,
+    header: parsed.header, objects: parsed.objects, rawLayer1: layer1Data, layer2, layer2Error, sprite, spriteError,
     warnings: [
       "Layer 1 objects are decoded and positioned, but object-specific geometry is not expanded into Map16 tiles.",
       "Layer 2 BG tilemaps, sprite record variants and custom Lunar Magic pointer layouts are not fully supported."
