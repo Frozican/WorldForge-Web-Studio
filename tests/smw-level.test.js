@@ -21,10 +21,10 @@ test("parses Layer 1 header, object positions and end marker", () => {
   assert.equal(parsed.objects[1].screen, 1);
   assert.equal(parsed.objects[1].x, 21);
 });
-test("loads a synthetic level through the vanilla Layer 1 pointer table", () => {
+test("loads a raw (uncompressed) synthetic level through the vanilla Layer 1 pointer table", () => {
   const rom = new Uint8Array(0x80000);
   rom.set([0x00,0x80,0x05], 0x2E000); // Level 000 -> $05:8000 -> PC $028000
-  rom.set([9,0x10,0x20,0x30,0x40,0x50,0x01,0x23,0x99,0xFF,0xFF,0xFF], 0x28000);
+  rom.set([0x10,0x20,0x30,0x40,0x50,0x01,0x23,0x99,0xFF], 0x28000);
   const level = loadSmwLevel(rom, 0);
   assert.equal(level.objects.length, 1);
   assert.equal(level.objects[0].x, 3);
