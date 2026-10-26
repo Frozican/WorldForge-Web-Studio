@@ -1,6 +1,7 @@
 # Architecture
 
 - `src/rom.js`: local ROM header inspection, copier-header detection, hex dump and LoROM address conversion.
+- `src/smw-level.js`: bounds-checked vanilla SMW pointer-table lookup, LC-RLE1 decompression and Layer 1 object-position parsing. Read-only; expanded object geometry and graphics are not implemented.
 - `src/editor.js`: original prototype grid rendering; placeholder artwork only.
 - `src/main.js`: UI lifecycle, local file loading, navigation, grid editing and JSON export.
 - `index.html` / `styles.css`: responsive app shell.
